@@ -1,0 +1,254 @@
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webvr - daydream</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+		<!-- Origin Trial Token, feature = WebVR (For Chrome M59+), origin = https://threejs.org, expires = 2017-09-03 -->
+		<meta http-equiv="origin-trial" data-feature="WebVR (For Chrome M59+)" data-expires="2017-09-03" content="Aqj+6XPnxHoSxQj/CDjGXhzrVFeP12/Pgvj7rfqFqVzodYX0ZXJNHTJIvCVExQfvip+Zq9GES+SOQ/zJlpceZgcAAABNeyJvcmlnaW4iOiJodHRwczovL3RocmVlanMub3JnOjQ0MyIsImZlYXR1cmUiOiJXZWJWUjEuMSIsImV4cGlyeSI6MTUwNDQ2NDIwNn0=">
+		<style>
+			body {
+				font-family: Monospace;
+				background-color: #101010;
+				color: #fff;
+				margin: 0px;
+				overflow: hidden;
+			}
+			a {
+				color: #f00;
+			}
+		</style>
+	</head>
+	<body>
+
+		<script src="js/three.js"></script>
+		<script src="js/DaydreamController.js"></script>
+		<script src="js/WebVR.js"></script>
+        <script src="js/VRControls.js"></script>
+        <script src="js/VREffect.js"></script>
+        <script src="js/three.flycontrols.js"></script>
+        <script src="js/three.terrainloader.js"></script>
+
+		<script>
+
+			WEBVR.checkAvailability().catch( function( message ) {
+
+				document.body.appendChild( WEBVR.getMessageContainer( message ) );
+
+			} );
+
+			//
+
+			var clock = new THREE.Clock();
+
+			var container;
+			var camera, scene, ray, raycaster, renderer;
+			var gamepad;
+
+			var room;
+
+			var INTERSECTED;
+
+			init();
+			animate();
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				var info = document.createElement( 'div' );
+				info.style.position = 'absolute';
+				info.style.top = '10px';
+				info.style.width = '100%';
+				info.style.textAlign = 'center';
+				info.innerHTML = '<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webvr - daydream';
+				container.appendChild( info );
+
+                // Width and height of the browser window
+                var WINDOW_WIDTH = window.innerWidth;
+                var WINDOW_HEIGHT = window.innerHeight;
+
+                // Width and height of the surface we're going to create
+                var WORLD_WIDTH = 2000;
+                var WORLD_HEIGHT = 2000;
+    
+				scene = new THREE.Scene();
+
+                camera = new THREE.PerspectiveCamera(75, WINDOW_WIDTH / WINDOW_HEIGHT, 1, 5000);
+                
+                // Position the camera slightly above and in front of the scene
+                camera.position.set(0, -199, 275);
+                camera.up = new THREE.Vector3(0,0,1);
+
+                // Look at the center of the scene
+                camera.lookAt(scene.position);
+
+				// URL to our DEM resource
+                var terrainURL = "data/unsigned.bin";
+
+                // Utility to load the DEM data
+                var terrainLoader = new THREE.TerrainLoader();
+
+                // We'll need this later
+                var surface;
+
+                // Create the plane geometry
+                var geometry = new THREE.PlaneGeometry(WORLD_WIDTH, WORLD_HEIGHT, 649, 553);
+
+                // The terrainLoader loads the DEM file and defines a function to be called when the file is successfully downloaded.
+                terrainLoader.load(terrainURL, function(data){
+
+                    // Adjust each vertex in the plane to correspond to the height value in the DEM file.
+                    for (var i = 0, l = geometry.vertices.length; i < l; i++) {
+                        geometry.vertices[i].z = data[i] / 65535 * 400;
+                    }
+
+                    var textureLoader = new THREE.TextureLoader();
+                    var textureURL = "data/unsigned.jpg";
+
+                    // This goes inside the TerrainLoader callback function
+                    textureLoader.load(textureURL, function(texture) {
+                        var material = new THREE.MeshLambertMaterial({
+                            map: texture,
+                        });
+
+                        // This goes in the TextureLoader callback
+                        // Create the surface mesh and add it to the scene
+                        surface = new THREE.Mesh(geometry, material);
+                        scene.add(surface);
+                    });
+                });
+
+                // Lights!
+                var dirLight = new THREE.DirectionalLight( 0xffffff, 0.75);
+                dirLight.position.set( -1, 1, 1).normalize();
+
+                var ambiLight = new THREE.AmbientLight(0x999999);
+
+                // Add the lights to the scene
+                scene.add(ambiLight);
+                scene.add(dirLight);
+
+                // Detect mobile devices in the user agent
+                var is_mobile= /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                <!-- // Conditionally load VR or Fly controls, based on whether we're on a mobile device -->
+                <!-- if (is_mobile) { -->
+                    <!-- controls = new THREE.VRControls(camera); -->
+                <!-- } else { -->
+                    <!-- // WASD-style movement controls -->
+                    <!-- controls = new THREE.FlyControls(camera); -->
+
+                    <!-- // Disable automatic forward movement -->
+                    <!-- controls.autoForward = false; -->
+
+                    <!-- // Click and drag to look around with the mouse -->
+                    <!-- controls.dragToLook = true; -->
+
+                    <!-- // Movement and roll speeds, adjust these and see what happens! -->
+                    <!-- controls.movementSpeed = 20; -->
+                    <!-- controls.rollSpeed = Math.PI / 12; -->
+                <!-- } -->
+
+				//
+
+				<!-- raycaster = new THREE.Raycaster(); -->
+
+				//
+
+				// Think of the renderer as the engine that drives the scene
+                renderer = new THREE.WebGLRenderer({antialias: true});
+
+                // Set the pixel ratio of the screen (for high DPI screens)
+                renderer.setPixelRatio(window.devicePixelRatio);
+
+                // Set the background of the scene to a blue
+                renderer.setClearColor(0x87ceeb);
+
+                // Set renderer to the size of the window
+                renderer.setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
+    
+    			container.appendChild( renderer.domElement );
+
+				renderer.vr.enabled = true;
+
+				//
+
+				WEBVR.getVRDisplay( function ( device ) {
+
+					renderer.vr.setDevice( device );
+					document.body.appendChild( WEBVR.getButton( device, renderer.domElement ) );
+
+				} );
+
+				//
+                
+                <!-- if ( navigator.getVRDisplays ) { -->
+
+					<!-- navigator.getVRDisplays() -->
+						<!-- .then( function ( displays ) { -->
+							<!-- effect.setVRDisplay( displays[ 0 ] ); -->
+							<!-- controls.setVRDisplay( displays[ 0 ] ); -->
+						<!-- } ) -->
+						<!-- .catch( function () { -->
+							<!-- // no displays -->
+						<!-- } ); -->
+
+					<!-- document.body.appendChild( WEBVR.getButton( effect ) ); -->
+
+				<!-- } -->
+
+				gamepad = new THREE.DaydreamController();
+				gamepad.position.set( 0.25, - 0.5, 0 );
+				scene.add( gamepad );
+
+				//
+
+				var gamepadHelper = new THREE.Line( new THREE.BufferGeometry(), new THREE.LineBasicMaterial( { linewidth: 4 } ) );
+				gamepadHelper.geometry.addAttribute( 'position', new THREE.Float32BufferAttribute( [ 0, 0, 0, 0, 0, - 10 ], 3 ) );
+				gamepad.add( gamepadHelper );
+
+				renderer.domElement.addEventListener( 'click', function ( event ) {
+
+					gamepadHelper.material.color.setHex( Math.random() * 0xffffff );
+
+				} );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			//
+
+			function animate() {
+
+				renderer.animate( render );
+
+			}
+
+			function render() {
+
+				gamepad.update();
+
+				var delta = clock.getDelta() * 60;
+                <!-- controls.update(); -->
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+	</body>
+</html>
